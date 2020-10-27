@@ -5,28 +5,48 @@ L.tileLayer('https://api.mapbox.com/styles/v1/{id}/tiles/{z}/{x}/{y}?access_toke
     id: 'mapbox/streets-v11',
     tileSize: 512,
     zoomOffset: -1,
-    accessToken: 'pk.eyJ1IjoiYWdlbnRoZXNoIiwiYSI6ImNrZ2w1czgzZzBxOWMydG5haXprZ3QxcTQifQ.V6YSkIJC02Zx-pbNnfwl6g'
+    accessToken: 'pk.eyJ1IjoiYWdlbnRoZXNoIiwiYSI6ImNrZ3NjcXA4YTEzd3Qyemw4d3g4Nnlqd2QifQ.hyVUtRepmy9kxZ7oDQ02aw'
 }).addTo(map);
 
-map.locate({setView: true, maxZoom: 15});
+map.locate({setView: true, maxZoom: 15, enableHighAccuracy: true, watch: true});
 
-var current_position, current_accuracy, currentLatLng;
+var routingControl = L.Routing.control({
+  waypoints: [],
+  router: L.Routing.mapbox('pk.eyJ1IjoiYWdlbnRoZXNoIiwiYSI6ImNrZ3NjcXA4YTEzd3Qyemw4d3g4Nnlqd2QifQ.hyVUtRepmy9kxZ7oDQ02aw')
+}).addTo(map);
+
+var current_position, current_accuracy, currentlatlng, destinationlatlng;
 
     function onLocationFound(e) {
       // if position defined, then remove the existing position marker and accuracy circle from the map
       if (current_position) {
           map.removeLayer(current_position);
           map.removeLayer(current_accuracy);
+
+          currentlatlng = e.latlng;
+
+          var oldWayPoints = routingControl.getWaypoints();
+
+          oldWayPoints.splice(0,1,L.latLng(e.latlng));
+
+          routingControl.setWaypoints(oldWayPoints);
+
+          dataToPost(currentlatlng,destinationlatlng);
+
+
       }
 
       var radius = e.accuracy / 2;
 
-      currentLatLng = e.latlng;
+      currentlatlng = e.latlng;
 
       current_position = L.marker(e.latlng).addTo(map)
         .bindPopup("You are within " + radius + " meters from this point").openPopup();
 
-      current_accuracy = L.circle(e.latlng, radius).addTo(map); 
+      current_accuracy = L.circle(e.latlng, radius).addTo(map);
+      
+
+      
     }
     
 
@@ -45,31 +65,14 @@ var current_position, current_accuracy, currentLatLng;
 
     function onMapClick(e) {
 
-        L.Routing.control({
-            waypoints: [
-              L.latLng(currentLatLng),
-              L.latLng(e.latlng)
-            ]
-          }).addTo(map);
-
-          var newData = {
-            currentPos:{lat:currentLatLng.lat,lng:currentLatLng.lng},
-            destinationPos:{lat:e.latlng.lat,lng:e.latlng.lng}
-          }
-
-          $.ajax({
-            type: "POST",
-            url: "http://localhost:3000",
-            data: newData,
-            success: function(){
-                console.log("SENT SUCCESSFULLY");
-            },
-            dataType: "JSON"
-          });
-          
+      destinationlatlng = e.latlng
+      routingControl.setWaypoints([L.latLng(currentlatlng),L.latLng(e.latlng)]);
+      dataToPost(currentlatlng,destinationlatlng);
     }
 
-    map.once('click', onMapClick);
+    map.on('click', onMapClick);
+
+
 
     // // wrap map.locate in a function    
     // function locate() {
@@ -78,3 +81,35 @@ var current_position, current_accuracy, currentLatLng;
 
     // // call locate every 3 seconds... forever
     // setInterval(locate, 3000);
+
+    // L.Routing.control({
+    //   waypoints: [
+    //     L.latLng(currentLatLng),
+    //     L.latLng(e.latlng)
+    //   ],
+    //   router: L.Routing.mapbox('pk.eyJ1IjoiYWdlbnRoZXNoIiwiYSI6ImNrZ3NjcXA4YTEzd3Qyemw4d3g4Nnlqd2QifQ.hyVUtRepmy9kxZ7oDQ02aw')
+    // }).addTo(map);
+
+    function dataToPost(currentLatLng,destinationLatLng){
+
+      var newData = {
+        currentPos:{
+          lat: currentLatLng.lat,
+          lng: currentLatLng.lng
+        },
+        destinationPos:{
+          lat: destinationLatLng.lat,
+          lng: destinationLatLng.lng
+        }
+      }
+
+      $.ajax({
+        type: "POST",
+        url: "http://localhost:3000",
+        data: newData,
+        success: function(){
+            console.log("SENT SUCCESSFULLY");
+        },
+        dataType: "JSON"
+      });
+    }
